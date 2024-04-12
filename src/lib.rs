@@ -1,28 +1,28 @@
 mod bstack;
 
-struct STree2<T>{
-    nodes: [Option<T>;4]
-}
+// struct STree2<T>{
+//     nodes: [Option<T>;4]
+// }
 
-struct STree3<T>{
-    nodes: [Option<T>;8]
-}
+// struct STree3<T>{
+//     nodes: [Option<T>;8]
+// }
 
-struct STree4<T>{
-    nodes: [Option<T>;16]
-}
+// struct STree4<T>{
+//     nodes: [Option<T>;16]
+// }
 
-struct STree5<T>{
-    nodes: [Option<T>;32]
-}
+// struct STree5<T>{
+//     nodes: [Option<T>;32]
+// }
 
-struct STree6<T>{
-    nodes: [Option<T>;64]
-}
+// struct STree6<T>{
+//     nodes: [Option<T>;64]
+// }
 
-struct STree7<T>{
-    nodes: [Option<T>;128]
-}
+// struct STree7<T>{
+//     nodes: [Option<T>;128]
+// }
 
 struct STree8<T>{
     nodes: [Option<T>;256]
@@ -48,8 +48,18 @@ trait SortTree<T : Ord>{
     fn insert(& mut self, value: T) -> Result<usize, &'static str>;
 }
 
-struct STree8Iter{
+struct STree8Iter<'a, T>{
+    tree: & 'a STree8<T>,
     stack: bstack::BStack
+}
+
+impl<'a, T> STree8Iter<'a, T>{
+    fn new(tree : & 'a STree8<T>) -> STree8Iter<'a, T>{
+        STree8Iter::<'a, T>{
+            tree: tree,
+            stack: bstack::BStack::new()
+        }
+    }
 }
 
 impl<T> Tree<T> for STree8<T>{
@@ -57,6 +67,7 @@ impl<T> Tree<T> for STree8<T>{
         todo!("complete implementation")
     }
     fn deep_first<S : Iterator>(& self) -> S {
+        let iter = STree8Iter::new(self);
         todo!("complete implementation")
     }
 }
