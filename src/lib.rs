@@ -32,13 +32,30 @@ impl<T : Copy> STree8<T>{
           nodes: [None; 256]
       }
     }
+    fn depth(& self) -> usize{
+        todo!("implement with .log2().floor() of the latest busy node")
+    }
 }
 
 trait Tree<T> {
+    fn deep_first_level<S : Iterator>(& self) -> S;
+    fn deep_first<S : Iterator>(& self) -> S;
+}
+
+trait SortTree<T : Ord>{
     fn insert(& mut self, value: T) -> Result<usize, &'static str>;
 }
 
-impl<T : Ord> Tree<T> for STree8<T>{
+impl<T> Tree<T> for STree8<T>{
+    fn deep_first_level<S : Iterator>(& self) -> S {
+        todo!("complete implementation")
+    }
+    fn deep_first<S : Iterator>(& self) -> S {
+        todo!("complete implementation")
+    }
+}
+
+impl<T : Ord> SortTree<T> for STree8<T>{
     fn insert(& mut self, value: T) -> Result<usize, &'static str>{
         let mut node : usize = 1;
         loop {
@@ -75,7 +92,7 @@ mod tests{
     #[test]
     fn can_insert(){
         let mut tree : STree8<i64> = STree8::new();
-        for value in [4,5,2,8,6]{
+        for value in [4,5,2,8,6,1]{
             let result = tree.insert(value);
             match result {
                 Err(message) => {
