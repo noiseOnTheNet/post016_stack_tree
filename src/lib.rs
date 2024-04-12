@@ -1,3 +1,5 @@
+mod bstack;
+
 struct STree2<T>{
     nodes: [Option<T>;4]
 }
@@ -46,6 +48,10 @@ trait SortTree<T : Ord>{
     fn insert(& mut self, value: T) -> Result<usize, &'static str>;
 }
 
+struct STree8Iter{
+    stack: bstack::BStack
+}
+
 impl<T> Tree<T> for STree8<T>{
     fn deep_first_level<S : Iterator>(& self) -> S {
         todo!("complete implementation")
@@ -79,10 +85,6 @@ impl<T : Ord> SortTree<T> for STree8<T>{
             }
         }
     }
-}
-
-struct STree8Iter{
-
 }
 
 #[cfg(test)]
