@@ -1,0 +1,57 @@
+#+ORG2BLOG:
+#+DATE: [2024-04-21 dom 10:06]
+#+OPTIONS: toc:nil num:nil todo:nil pri:nil tags:nil ^:nil
+#+CATEGORY: Language learning
+#+TAGS: Rust
+#+DESCRIPTION: creating a tree which works in embedded devices
+#+TITLE: Growing a Tree in the stack
+
+So far we created and explored trees which grow into the application *heap*
+memory, this allowed us to have almost arbitrary size and use the type system to
+guarantee consistent states
+
+What if we cannot use the heap? This happens in embedded devices, which are an
+important target of Rust.
+
+Our trees will have a maximum height (or depth using mainstream jargon) and this
+may seem a hard limitation, but has interesting cases in machine learning.
+
+Let's dive in.
+
+* Choosing compromises
+When developing code we may have constraints of memory size, execution time,
+storage size, I/O throughput, computation cores available.
+
+Dealing with these constraints may require to give up perfect solutions and use
+some approximations; choosing carefully these approximations and account for the
+errors we expect is a critical path of a software architecture.
+
+By forcing our data structure to work in the stack we *need to know its size in
+advance* thus:
+- we may allocate more space than needed
+- we may not grow over the maximum size we define
+
+A more subtle point is *we may accept that types can't fully describe our
+status*, i.e. our data structure may allow for inconsistent states.
+
+To deal with this point we have two tools:
+- *incapsulate* the inner elements of our data structure so that they can be
+  accessed only via our interface
+- *add unit tests* to verify if the interface respect the "contract"
+
+What if our data structure ends up in an inconsistent state?
+
+We may have e.g.:
+- incomplete coverage of our tests
+- hardware failure
+- software attack
+
+If one of these or any other failure brings our data structure in an
+inconsistent state, we have two options:
+- *panic* i.e. terminate the program
+- return a *Result* type
+
+The first solution is simpler but makes it impossible to understand the reasons
+of the failure in a post-mortem analysis, moreover if I'm developing a library I
+may prefer to leave the decision about how to handle the inconsistent state to
+the application.
