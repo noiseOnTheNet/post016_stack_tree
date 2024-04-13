@@ -1,3 +1,7 @@
+#![no_std]
+
+use bstack::BStackError;
+
 mod bstack;
 
 // struct STree2<T>{
@@ -48,16 +52,70 @@ trait SortTree<T : Ord>{
     fn insert(& mut self, value: T) -> Result<usize, &'static str>;
 }
 
+#[derive(Debug, Clone, Copy)]
+enum Address{
+    Enter,
+    AfterLeft,
+    ValueYielded
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Branch{
+    Left,
+    Right
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum TreeError{
+    MissingReturnAddress(usize),
+    StackError(bstack::BStackError)
+}
+
+impl From<bstack::BStackError> for TreeError{
+    fn from(value: bstack::BStackError) -> Self {
+        BStackError(value)
+    }
+
+}
+
+struct TreeStackFrame{
+    address: Address,
+    cell: usize
+}
+
 struct STree8Iter<'a, T>{
     tree: & 'a STree8<T>,
-    stack: bstack::BStack
+    stack: bstack::BStack,
+    addresses: [Option<Address>; 256]
 }
 
 impl<'a, T> STree8Iter<'a, T>{
-    fn new(tree : & 'a STree8<T>) -> STree8Iter<'a, T>{
+    pub fn new(tree : & 'a STree8<T>) -> STree8Iter<'a, T>{
         STree8Iter::<'a, T>{
-            tree: tree,
-            stack: bstack::BStack::new()
+            tree,
+            stack: bstack::BStack::new(),
+            addresses: [None; 256]
+        }
+    }
+
+    fn push(& self, branch: Branch, address: Address) -> Result<usize, TreeError>{
+        let cell = self.stack.push(branch == Branch::Left).unwrap_or(TreeError::EmptyStack);
+        self.addresses[self.stack.get_state()] = Some(address);
+        Ok(cell)
+    }
+
+    fn pop(& self) -> Result<(usize, Address), TreeError> {
+        let cell = self.stack.get_state();
+        let _branch = self.stack.pop().unwrap_or_else(TreeError::EmptyStack);
+        let address = self.addresses[cell].ok_or_else(TreeError::MissingReturnAddress(cell));
+        Ok((cell, address))
+    }
+
+    pub fn next_item(& self) -> Option<& 'a T>{
+        while self.stack.size() > 0{
+            if let Some((cell, address)) = self.stack.pop(){
+
+            }
         }
     }
 }
@@ -112,7 +170,7 @@ mod tests{
                     panic!("failed insertion {}",message);
                 },
                 Ok(node) => {
-                    println!("{} inserted in node {}", value, node);
+                    //println!("{} inserted in node {}", value, node);
                 }
             }
         }

@@ -3,12 +3,22 @@ pub struct BStack {
     stack: usize
 }
 
+#[derive(Clone, Copy,Debug, PartialEq)]
+pub enum BStackError{
+    EmptyStack,
+    FullStack
+}
+use BStackError::*;
+
 impl BStack {
     pub fn new() -> BStack {
         BStack { stack: 1 }
     }
 
-    pub fn push(& mut self, value: bool) -> Result<bool, String>{
+    pub fn push(& mut self, value: bool) -> Result<bool, BStackError>{
+        if self.size() == usize::BITS -1 {
+            return Err(FullStack)
+        }
         self.stack = self.stack << 1;
         if value{
             self.stack += 1;
@@ -16,16 +26,16 @@ impl BStack {
         Ok(value)
     }
 
-    pub fn top(& self) -> Result<bool, String> {
+    pub fn top(& self) -> Result<bool, BStackError> {
         if self.stack == 1 {
-            return Err("Empty stack".into())
+            return Err(EmptyStack)
         }
         Ok((self.stack & 1) == 1)
     }
 
-    pub fn pop(& mut self) -> Result<bool, String> {
+    pub fn pop(& mut self) -> Result<bool, BStackError> {
         if self.stack == 1 {
-            return Err("Empty stack".into())
+            return Err(EmptyStack)
         }
         let result = (self.stack & 1) == 1;
         self.stack = self.stack >> 1;
@@ -34,6 +44,10 @@ impl BStack {
 
     pub fn size(& self) -> u32 {
         usize::BITS - usize::leading_zeros(self.stack) - 1
+    }
+
+    pub fn get_state(& self) -> usize {
+        self.stack.clone()
     }
 }
 
@@ -95,7 +109,7 @@ mod tests {
     fn empty_does_not_pop() {
         let mut stack = BStack::new();
         let result = stack.pop();
-        assert_eq!(result, Err("Empty stack".into()));
+        assert_eq!(result, Err(EmptyStack));
     }
 
 }
