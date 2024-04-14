@@ -41,6 +41,12 @@ impl<T : Copy> STree8<T>{
     fn depth(& self) -> usize{
         todo!("implement with .log2().floor() of the latest busy node")
     }
+    fn peek(& self, cell: usize) -> Result<Option<T>,TreeError>{
+        if cell >= 256{
+            return Err(TreeError::TreeOverflowCell)
+        }
+        Ok(self.nodes[cell])
+    }
 }
 
 trait Tree<T> {
@@ -56,7 +62,8 @@ trait SortTree<T : Ord>{
 enum Address{
     Enter,
     AfterLeft,
-    ValueYielded
+    ValueYielded,
+    Completed
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -68,12 +75,14 @@ enum Branch{
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum TreeError{
     MissingReturnAddress(usize),
-    StackError(bstack::BStackError)
+    StackError(bstack::BStackError),
+    IteratorCompleted,
+    TreeOverflowCell
 }
 
 impl From<bstack::BStackError> for TreeError{
     fn from(value: bstack::BStackError) -> Self {
-        BStackError(value)
+        TreeError::StackError(value)
     }
 
 }
@@ -89,7 +98,7 @@ struct STree8Iter<'a, T>{
     addresses: [Option<Address>; 256]
 }
 
-impl<'a, T> STree8Iter<'a, T>{
+impl<'a, T : Copy> STree8Iter<'a, T>{
     pub fn new(tree : & 'a STree8<T>) -> STree8Iter<'a, T>{
         STree8Iter::<'a, T>{
             tree,
@@ -98,29 +107,72 @@ impl<'a, T> STree8Iter<'a, T>{
         }
     }
 
-    fn push(& self, branch: Branch, address: Address) -> Result<usize, TreeError>{
-        let cell = self.stack.push(branch == Branch::Left).unwrap_or(TreeError::EmptyStack);
+    fn push_branch(& mut self, branch: Branch, address: Address) -> Result<usize, TreeError>{
+        let _ = self.stack.push(branch == Branch::Left)?;
+        let cell = self.stack.get_state();
         self.addresses[self.stack.get_state()] = Some(address);
         Ok(cell)
     }
 
-    fn pop(& self) -> Result<(usize, Address), TreeError> {
+    fn push_cell(& mut self, cell: usize, address: Address) -> Result<usize,TreeError>{
+        todo!("complete implementation");
+    }
+
+    fn pop(& mut self) -> Result<(usize, Address), TreeError> {
         let cell = self.stack.get_state();
-        let _branch = self.stack.pop().unwrap_or_else(TreeError::EmptyStack);
-        let address = self.addresses[cell].ok_or_else(TreeError::MissingReturnAddress(cell));
+        let _branch = self.stack.pop()?;
+        let address = self.addresses[cell].ok_or(TreeError::MissingReturnAddress(cell))?;
         Ok((cell, address))
     }
 
-    pub fn next_item(& self) -> Option<& 'a T>{
+    pub fn next_item(& mut self) -> Result<& 'a T, TreeError>{
         while self.stack.size() > 0{
-            if let Some((cell, address)) = self.stack.pop(){
+            let (cell, address) = self.pop()?;
+            match address{
+                Address::Enter => {
+                    let left_address = cell << 1;
+                    match self.tree.peek(left_address)?{
+                        None => {
+                            self.push_cell(cell, Address::AfterLeft);
+                        }
+                        Some(_) =>{
+                            self.push_cell(cell, Address::AfterLeft);
+                            self.push_branch(Branch::Left, Address::Enter);
+                        }
+                    }
+                },
+                Address::AfterLeft => {
+                    self.push_cell(cell, Address::ValueYielded);
+                    if let Some(result) = self.tree.peek(cell)?{
+                        //return Ok(&result);
+                        todo!("complete implementation")
+                    }else{
+                        return Err(TreeError::IteratorCompleted)
+                    }
 
+                },
+                Address::ValueYielded => {
+                    let right_address = (cell << 1) | 1;
+                    match self.tree.peek(right_address)?{
+                        None => {
+                            self.push_cell(cell, Address::Completed);
+                        },
+                        Some(_) => {
+                            self.push_cell(cell, Address::Completed);
+                            self.push_branch(Branch::Right, Address::Enter);
+                        }
+                    }
+                },
+                Address::Completed =>{
+
+                }
             }
         }
+        Err(TreeError::IteratorCompleted)
     }
 }
 
-impl<T> Tree<T> for STree8<T>{
+impl<T : Copy> Tree<T> for STree8<T>{
     fn deep_first_level<S : Iterator>(& self) -> S {
         todo!("complete implementation")
     }
