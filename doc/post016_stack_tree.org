@@ -5,6 +5,7 @@
 #+TAGS: Rust
 #+DESCRIPTION: creating a tree which works in embedded devices
 #+TITLE: Growing a Tree in the stack
+This post is a little tough.
 
 So far we created and explored trees which grow into the application *heap*
 memory, this allowed us to have almost arbitrary size and use the type system to
@@ -16,6 +17,16 @@ important target of Rust.
 Our trees will have a maximum height (or depth using mainstream jargon) and this
 may seem a hard limitation, but has interesting cases in machine learning.
 
+To simulate this case we are going to add the following line at the beginning of
+our file
+
+#+begin_src rust
+#![no_std]
+#+end_src
+
+This completely disable any access to the heap, as well as other libraries which
+may not work on bare metal platforms.
+
 Let's dive in.
 
 * Choosing compromises
@@ -26,11 +37,13 @@ Dealing with these constraints may require to give up perfect solutions and use
 some approximations; choosing carefully these approximations and account for the
 errors we expect is a critical path of a software architecture.
 
+** Size compromise
 By forcing our data structure to work in the stack we *need to know its size in
 advance* thus:
 - we may allocate more space than needed
 - we may not grow over the maximum size we define
 
+** Type compromise
 A more subtle point is *we may accept that types can't fully describe our
 status*, i.e. our data structure may allow for inconsistent states.
 
@@ -39,12 +52,13 @@ To deal with this point we have two tools:
   accessed only via our interface
 - *add unit tests* to verify if the interface respect the "contract"
 
+** Error management compromise
 What if our data structure ends up in an inconsistent state?
 
 We may have e.g.:
 - incomplete coverage of our tests
 - hardware failure
-- software attack
+- software/hardare attacks (e.g. rowhammer)
 
 If one of these or any other failure brings our data structure in an
 inconsistent state, we have two options:
@@ -55,3 +69,31 @@ The first solution is simpler but makes it impossible to understand the reasons
 of the failure in a post-mortem analysis, moreover if I'm developing a library I
 may prefer to leave the decision about how to handle the inconsistent state to
 the application.
+* Addressing a binary tree in an array
+We can put a binary tree in a fixed size array if we store the data in a certain
+order.
+
+In a previous post ( [[https://noiseonthenet.space/noise/2024/03/stacking-bits/][Stacking Bits]] ) I described how to create a stack of
+boolean using shift operators on a ~usize~ word.
+
+
+* Managing errors
+We cannot use ~String~ object to represent an error value, due to our heap constraint.
+
+As we saw that ~& str~ objects in the stack do not live enough we may choose to
+use constant strings which have infinite lifetime ~& 'static str~ but this has three drawbacks:
+- we cannot add dynamic information about why and how the system failed
+- this will make it more complex for the users of our library to match and handle errors
+- this may require more space than using other solutions
+
+A common approach is to define an ~enum~ which describes the expected failure modes
+
+As we are using
+* Debugging
+We may not have a debugger easily running in a bare metal platform; moreover we
+have no ~print!~ macro available and also writing results on the serial
+connection with the host may alter the platform behavior.
+
+* Conclusions
+Rust allows pretty complex abstractions to run on bare metal with very little
+or no runtime cost (iterators are a well known example).
