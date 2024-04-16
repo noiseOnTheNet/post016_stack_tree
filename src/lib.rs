@@ -1,32 +1,6 @@
 #![no_std]
 
-use bstack::BStackError;
-
 mod bstack;
-
-// struct STree2<T>{
-//     nodes: [Option<T>;4]
-// }
-
-// struct STree3<T>{
-//     nodes: [Option<T>;8]
-// }
-
-// struct STree4<T>{
-//     nodes: [Option<T>;16]
-// }
-
-// struct STree5<T>{
-//     nodes: [Option<T>;32]
-// }
-
-// struct STree6<T>{
-//     nodes: [Option<T>;64]
-// }
-
-// struct STree7<T>{
-//     nodes: [Option<T>;128]
-// }
 
 struct STree8<T>{
     nodes: [Option<T>;256]
@@ -84,7 +58,6 @@ impl From<bstack::BStackError> for TreeError{
     fn from(value: bstack::BStackError) -> Self {
         TreeError::StackError(value)
     }
-
 }
 
 struct TreeStackFrame{
@@ -100,11 +73,16 @@ struct STree8Iter<'a, T>{
 
 impl<'a, T : Copy> STree8Iter<'a, T>{
     pub fn new(tree : & 'a STree8<T>) -> STree8Iter<'a, T>{
-        STree8Iter::<'a, T>{
+        let mut iterator = STree8Iter::<'a, T>{
             tree,
             stack: bstack::BStack::new(),
             addresses: [None; 256]
+        };
+        if let Ok(Some(_)) = iterator.tree.peek(1) {
+            // ignore errors as iterator is just created
+            let _ = iterator.push_branch(Branch::Left, Address::ValueYielded);
         }
+        iterator
     }
 
     fn push_branch(& mut self, branch: Branch, address: Address) -> Result<usize, TreeError>{
@@ -115,7 +93,10 @@ impl<'a, T : Copy> STree8Iter<'a, T>{
     }
 
     fn push_cell(& mut self, cell: usize, address: Address) -> Result<usize,TreeError>{
-        todo!("complete implementation");
+        let _ = self.stack.push(cell & 1 == 1)?;
+        let cell = self.stack.get_state();
+        self.addresses[self.stack.get_state()] = Some(address);
+        Ok(cell)
     }
 
     fn pop(& mut self) -> Result<(usize, Address), TreeError> {
@@ -125,7 +106,7 @@ impl<'a, T : Copy> STree8Iter<'a, T>{
         Ok((cell, address))
     }
 
-    pub fn next_item(& mut self) -> Result<& 'a T, TreeError>{
+    pub fn next_item(& mut self) -> Result<T, TreeError>{
         while self.stack.size() > 0{
             let (cell, address) = self.pop()?;
             match address{
@@ -133,19 +114,18 @@ impl<'a, T : Copy> STree8Iter<'a, T>{
                     let left_address = cell << 1;
                     match self.tree.peek(left_address)?{
                         None => {
-                            self.push_cell(cell, Address::AfterLeft);
+                            self.push_cell(cell, Address::AfterLeft)?;
                         }
                         Some(_) =>{
-                            self.push_cell(cell, Address::AfterLeft);
-                            self.push_branch(Branch::Left, Address::Enter);
+                            self.push_cell(cell, Address::AfterLeft)?;
+                            self.push_branch(Branch::Left, Address::Enter)?;
                         }
                     }
                 },
                 Address::AfterLeft => {
-                    self.push_cell(cell, Address::ValueYielded);
-                    if let Some(result) = self.tree.peek(cell)?{
-                        //return Ok(&result);
-                        todo!("complete implementation")
+                    self.push_cell(cell, Address::ValueYielded)?;
+                    if let Some(ref result) = self.tree.peek(cell)?{
+                        return Ok(result.clone());
                     }else{
                         return Err(TreeError::IteratorCompleted)
                     }
@@ -155,11 +135,11 @@ impl<'a, T : Copy> STree8Iter<'a, T>{
                     let right_address = (cell << 1) | 1;
                     match self.tree.peek(right_address)?{
                         None => {
-                            self.push_cell(cell, Address::Completed);
+                            self.push_cell(cell, Address::Completed)?;
                         },
                         Some(_) => {
-                            self.push_cell(cell, Address::Completed);
-                            self.push_branch(Branch::Right, Address::Enter);
+                            self.push_cell(cell, Address::Completed)?;
+                            self.push_branch(Branch::Right, Address::Enter)?;
                         }
                     }
                 },
@@ -172,6 +152,22 @@ impl<'a, T : Copy> STree8Iter<'a, T>{
     }
 }
 
+impl<'a, T : Copy> Iterator for STree8Iter<'a, T>{
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        // WARNING
+        // this implicitly discard any error
+        self.next_item().ok()
+    }
+}
+
+impl<'a , T : Copy> IntoIterator for & 'a STree8<T>{
+     type Item = T;
+     type IntoIter = STree8Iter<'a, T>;
+     fn into_iter(self) -> Self::IntoIter {
+         STree8Iter::new(self)
+     }
+}
 impl<T : Copy> Tree<T> for STree8<T>{
     fn deep_first_level<S : Iterator>(& self) -> S {
         todo!("complete implementation")
@@ -215,16 +211,67 @@ mod tests{
     #[test]
     fn can_insert(){
         let mut tree : STree8<i64> = STree8::new();
-        for value in [4,5,2,8,6,1]{
+        let test_list = [4,5,2,8,6,1];
+        let mut count = 0;
+        for value in test_list{
             let result = tree.insert(value);
             match result {
                 Err(message) => {
                     panic!("failed insertion {}",message);
                 },
                 Ok(node) => {
-                    //println!("{} inserted in node {}", value, node);
+                    assert!(node < 256);
+                    count += 1;
                 }
             }
         }
+        assert_eq!(count,test_list.len());
+        let result = tree.peek(1);
+        assert_eq!(Ok(Some(4)),result);
+        let result = tree.peek(2);
+        assert_eq!(Ok(Some(2)),result);
+        let result = tree.peek(3);
+        assert_eq!(Ok(Some(5)),result);
+    }
+
+    #[test]
+    fn can_create_iterator(){
+        let mut tree : STree8<i64> = STree8::new();
+        let test_list = [4,5,2,8,6,1];
+        for value in test_list{
+            let _result = tree.insert(value);
+        }
+        let iterator = STree8Iter::new(& tree);
+        assert_eq!(iterator.stack.size(),1);
+    }
+
+    #[test]
+    fn can_extract_with_next_item(){
+        let mut tree : STree8<i64> = STree8::new();
+        let test_list = [4,5,2,8,6,1];
+        for value in test_list{
+            let _result = tree.insert(value);
+        }
+        let mut iterator = STree8Iter::new(& tree);
+        let mut result = iterator.next_item();
+        assert_eq!(Ok(1),result);
+        result = iterator.next_item();
+        assert_eq!(Ok(2),result);
+    }
+
+    #[test]
+    fn sort_works(){
+        let mut tree : STree8<i64> = STree8::new();
+        let test_list = [4,5,2,8,6,1];
+        for value in test_list{
+            let _result = tree.insert(value);
+        }
+        let expected = [1,2,4,5,6,8];
+        let mut count = 0;
+        for (i,v) in tree.into_iter().enumerate(){
+            assert_eq!(v,expected[i]);
+            count += 1;
+        }
+        assert_eq!(count,test_list.len());
     }
 }
