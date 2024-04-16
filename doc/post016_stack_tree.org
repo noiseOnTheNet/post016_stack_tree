@@ -1,3 +1,5 @@
+#+BLOG: noise on the net
+#+POSTID: 418
 #+ORG2BLOG:
 #+DATE: [2024-04-21 dom 10:06]
 #+OPTIONS: toc:nil num:nil todo:nil pri:nil tags:nil ^:nil
