@@ -19,7 +19,7 @@ impl BStack {
         if self.size() == usize::BITS -1 {
             return Err(FullStack)
         }
-        self.stack = self.stack << 1;
+        self.stack <<= 1;
         if value{
             self.stack += 1;
         }
@@ -38,7 +38,7 @@ impl BStack {
             return Err(EmptyStack)
         }
         let result = (self.stack & 1) == 1;
-        self.stack = self.stack >> 1;
+        self.stack >>= 1;
         Ok(result)
     }
 
@@ -47,7 +47,7 @@ impl BStack {
     }
 
     pub fn get_state(& self) -> usize {
-        self.stack.clone()
+        self.stack ^ (1 << self.size())
     }
 }
 

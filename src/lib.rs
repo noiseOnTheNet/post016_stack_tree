@@ -32,7 +32,7 @@ trait SortTree<T : Ord>{
     fn insert(& mut self, value: T) -> Result<usize, &'static str>;
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum Address{
     Enter,
     AfterLeft,
@@ -60,10 +60,10 @@ impl From<bstack::BStackError> for TreeError{
     }
 }
 
-struct TreeStackFrame{
-    address: Address,
-    cell: usize
-}
+// struct TreeStackFrame{
+//     address: Address,
+//     cell: usize
+// }
 
 struct STree8Iter<'a, T>{
     tree: & 'a STree8<T>,
@@ -80,7 +80,7 @@ impl<'a, T : Copy> STree8Iter<'a, T>{
         };
         if let Ok(Some(_)) = iterator.tree.peek(1) {
             // ignore errors as iterator is just created
-            let _ = iterator.push_branch(Branch::Left, Address::ValueYielded);
+            let _ = iterator.push_branch(Branch::Right, Address::Enter);
         }
         iterator
     }
@@ -125,7 +125,7 @@ impl<'a, T : Copy> STree8Iter<'a, T>{
                 Address::AfterLeft => {
                     self.push_cell(cell, Address::ValueYielded)?;
                     if let Some(ref result) = self.tree.peek(cell)?{
-                        return Ok(result.clone());
+                        return Ok(*result);
                     }else{
                         return Err(TreeError::IteratorCompleted)
                     }
@@ -168,15 +168,15 @@ impl<'a , T : Copy> IntoIterator for & 'a STree8<T>{
          STree8Iter::new(self)
      }
 }
-impl<T : Copy> Tree<T> for STree8<T>{
-    fn deep_first_level<S : Iterator>(& self) -> S {
-        todo!("complete implementation")
-    }
-    fn deep_first<S : Iterator>(& self) -> S {
-        let iter = STree8Iter::new(self);
-        todo!("complete implementation")
-    }
-}
+// impl<T : Copy> Tree<T> for STree8<T>{
+//     fn deep_first_level<S : Iterator>(& self) -> S {
+//         todo!("complete implementation")
+//     }
+//     fn deep_first<S : Iterator>(& self) -> S {
+//         let iter = STree8Iter::new(self);
+//         todo!("complete implementation")
+//     }
+// }
 
 impl<T : Ord> SortTree<T> for STree8<T>{
     fn insert(& mut self, value: T) -> Result<usize, &'static str>{
@@ -241,8 +241,9 @@ mod tests{
         for value in test_list{
             let _result = tree.insert(value);
         }
-        let iterator = STree8Iter::new(& tree);
+        let mut iterator = STree8Iter::new(& tree);
         assert_eq!(iterator.stack.size(),1);
+        assert_eq!(iterator.pop(),Ok((0,Address::Enter)));
     }
 
     #[test]
