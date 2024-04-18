@@ -75,9 +75,243 @@ the application.
 We can put a binary tree in a fixed size array if we store the data in a certain
 order.
 
+Let's take our previous example of a sorting tree and suppose to insert the following values
+ 1. 4
+ 2. 6
+ 3. 2
+ 4. 3
+ 5. 5
+ 6. 1
+ 7. 8
+
+This is how our tree would look like: remember that smaller values get are
+placed in the right branch and higher are placed in the left branch.
+
+
+#+BEGIN_SRC dot :file images/post016_rust_tree.png :exports results
+digraph {
+   rankdir = BT;
+   subgraph {
+        root [label="(4)", shape="box"];
+        child1 [label="(6)", shape="box"];
+        child2 [label="(2)", shape="box"];
+        granchild1 [label="(3)", shape="box"];
+        granchild2 [label="(1)", shape="box"];
+        granchild3 [label="(8)", shape="box"];
+        granchild4 [label="(5)", shape="box"];
+        root -> child1
+        root -> child2
+        child2 -> granchild1
+        child2 -> granchild2
+        child1 -> granchild3
+        child1 -> granchild4
+        {rank = same; child1; child2;}
+        {rank = same; granchild1; granchild2; granchild3; granchild4;}
+   }
+}
+#+END_SRC
+
+#+RESULTS:
+[[file:images/post016_rust_tree.png]]
+
+Now suppose to call the root ~#1~: we are going to label all nodes with positive integers with the following rules:
+- the right node label number is twice than the parent node label number
+- the left node label number is equal twice the parent node label plus one
+Here is the result
+
+#+BEGIN_SRC dot :file images/post016_rust_tree_label.png :exports results
+digraph {
+   rankdir = BT;
+   subgraph {
+        root [label="#1 (4)", shape="box"];
+        child1 [label="#3 (6)", shape="box"];
+        child2 [label="#2 (2)", shape="box"];
+        granchild1 [label="#5 (3)", shape="box"];
+        granchild2 [label="#4 (1)", shape="box"];
+        granchild3 [label="#7 (8)", shape="box"];
+        granchild4 [label="#6 (5)", shape="box"];
+        root -> child1
+        root -> child2
+        child2 -> granchild1
+        child2 -> granchild2
+        child1 -> granchild3
+        child1 -> granchild4
+        {rank = same; child1; child2;}
+        {rank = same; granchild1; granchild2; granchild3; granchild4;}
+   }
+}
+#+END_SRC
+
+#+RESULTS:
+[[file:images/post016_rust_tree_label.png]]
+
+This rule allows to map a binary tree into an array
+
+| #1  | #2  | #3  | #4  | #5  | #6  | #7  |
+|-----+-----+-----+-----+-----+-----+-----|
+| (4) | (2) | (6) | (1) | (3) | (5) | (8) |
+
+It is no coincidence that this tree has 3 "levels" and the number of values it
+can host is equal to $N(3)=2^3-1$
+
+So using this address rule we can use an array with a fixed lenght of $2^N$ to
+host up to $N$ levels of a binary tree. Of course we expect some cells to be
+empty; so we will use an array of ~Option<T>~ objects.
+
+For simplicty we have this ~T~ type to implement ~Copy~ so we can return it by
+value. The height of our tree (more commonly referred as ~depth~) will be
+calculated as $depth=\lceiling log_2(argmax_i(node(i)!=None) \rceiling$
+
+In this example we decide to fix the maximum depth to 8 so our tree will be
+placed into an array of $length = 2^8 = 256$
+#+begin_src rust
+struct STree8<T>{
+    nodes: [Option<T>;256]
+}
+
+impl<T : Copy> STree8<T>{
+    // create an empty tree
+    fn new() -> STree8<T>{
+      STree8{
+          nodes: [None; 256]
+      }
+    }
+
+    // calculate the tree depth
+    fn depth(& self) -> u32{
+        let mut result : usize = 0;
+        // find the highest index of a non empty cell
+        // there is no check about the array integrity here
+        for (i, value) in self.nodes.into_iter().enumerate(){
+            if let Some(_) = value{
+                if i > result{
+                    result = i;
+                }
+            }
+        }
+        // the cell 0 is always ignored with our assignment
+        if result == 0 {
+            return 0;
+        }
+        result.ilog2() + 1
+    }
+
+    // this function returns the content of a cell
+    // but checks that the index is below the maximum allowed:
+    // we can't afford panic in an embedded code
+    // error types are explained later on
+    fn peek(& self, cell: usize) -> Result<Option<T>,TreeError>{
+
+        if cell >= 256{
+            return Err(TreeError::TreeOverflowCell)
+        }
+        Ok(self.nodes[cell])
+    }
+}
+
+#+end_src
+
+With our labelling rule we can create a sorting tree provided the type ~T~
+implements the ~Ord~ trait
+
+#+begin_src rust
+trait SortTree<T : Ord>{
+    fn insert(& mut self, value: T) -> Result<usize, &'static str>;
+}
+
+impl<T : Ord> SortTree<T> for STree8<T>{
+    fn insert(& mut self, value: T) -> Result<usize, &'static str>{
+        let mut node : usize = 1;
+        loop {
+            if node > 255{
+                return Err("level greater than 8")
+            }
+            match self.nodes[node]{
+                None => {
+                    self.nodes[node] = Some(value);
+                    return Ok(node);
+                }
+                Some(ref node_value) => {
+                    // if we have the value in the tree already
+                    // then stop
+                    if value == *node_value{
+                        return Ok(node);
+                    }
+                    // the shift 1 operation is equivalent
+                    // to multiply by 2
+                    node <<= 1;
+
+                    if value > *node_value{
+                        // if the value is greater than
+                        // the one in the current cell
+                        // go to the "left" node
+                        node += 1;
+                    }
+                }
+            }
+        }
+    }
+}
+#+end_src
+
+We can now test our ~insert~ and ~depth~ methods
+
+#+begin_src rust
+mod tests{
+    use super::*;
+
+    #[test]
+    fn can_insert(){
+        let mut tree : STree8<i64> = STree8::new();
+        let test_list = [4,5,2,8,6,1];
+        let mut count = 0;
+        for value in test_list{
+            let result = tree.insert(value);
+            match result {
+                Err(message) => {
+                    panic!("failed insertion {}",message);
+                },
+                Ok(node) => {
+                    assert!(node < 256);
+                    count += 1;
+                }
+            }
+        }
+        assert_eq!(count,test_list.len());
+        let result = tree.peek(1);
+        assert_eq!(Ok(Some(4)),result);
+        let result = tree.peek(2);
+        assert_eq!(Ok(Some(2)),result);
+        let result = tree.peek(3);
+        assert_eq!(Ok(Some(5)),result);
+    }
+
+    #[test]
+    fn test_depth(){
+        let mut tree : STree8<i64> = STree8::new();
+        assert_eq!(tree.depth(),0);
+        let _ = tree.insert(4);
+        assert_eq!(tree.depth(),1);
+        let _ = tree.insert(5);
+        assert_eq!(tree.depth(),2);
+        let _ = tree.insert(2);
+        assert_eq!(tree.depth(),2);
+        let _ = tree.insert(8);
+        assert_eq!(tree.depth(),3);
+        let _ = tree.insert(6);
+        assert_eq!(tree.depth(),4);
+        let _ = tree.insert(1);
+        assert_eq!(tree.depth(),4);
+    }
+}
+#+end_src
+* Design a Depth First Traversal Iterator
+
 In a previous post ( [[https://noiseonthenet.space/noise/2024/03/stacking-bits/][Stacking Bits]] ) I described how to create a stack of
 boolean using shift operators on a ~usize~ word.
 
+it turns out that is exactly working as our address rule -- and this is not a
+coincidence: we already saw how trees and stacks are mutually connected.
 
 * Managing errors
 We cannot use ~String~ object to represent an error value, due to our heap constraint.
@@ -91,6 +325,8 @@ use constant strings which have infinite lifetime ~& 'static str~ but this has t
 A common approach is to define an ~enum~ which describes the expected failure modes
 
 As we are using
+
+* Implement the Depth First Traversal Iterator
 * Debugging
 We may not have a debugger easily running in a bare metal platform; moreover we
 have no ~print!~ macro available and also writing results on the serial
@@ -99,3 +335,6 @@ connection with the host may alter the platform behavior.
 * Conclusions
 Rust allows pretty complex abstractions to run on bare metal with very little
 or no runtime cost (iterators are a well known example).
+
+# images/post016_rust_tree.png https://noiseonthenet.space/noise/wp-content/uploads/2024/04/post016_rust_tree.png
+# images/post016_rust_tree_label.png https://noiseonthenet.space/noise/wp-content/uploads/2024/04/post016_rust_tree_label.png
