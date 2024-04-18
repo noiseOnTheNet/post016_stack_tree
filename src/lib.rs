@@ -12,8 +12,19 @@ impl<T : Copy> STree8<T>{
           nodes: [None; 256]
       }
     }
-    fn depth(& self) -> usize{
-        todo!("implement with .log2().floor() of the latest busy node")
+    fn depth(& self) -> u32{
+        let mut result : usize = 0;
+        for (i, value) in self.nodes.into_iter().enumerate(){
+            if let Some(_) = value{
+                if i > result{
+                    result = i;
+                }
+            }
+        }
+        if result == 0 {
+            return 0;
+        }
+        result.ilog2() + 1
     }
     fn peek(& self, cell: usize) -> Result<Option<T>,TreeError>{
         if cell >= 256{
@@ -60,11 +71,6 @@ impl From<bstack::BStackError> for TreeError{
     }
 }
 
-// struct TreeStackFrame{
-//     address: Address,
-//     cell: usize
-// }
-
 struct STree8Iter<'a, T>{
     tree: & 'a STree8<T>,
     stack: bstack::BStack,
@@ -86,7 +92,7 @@ impl<'a, T : Copy> STree8Iter<'a, T>{
     }
 
     fn push_branch(& mut self, branch: Branch, address: Address) -> Result<usize, TreeError>{
-        let _ = self.stack.push(branch == Branch::Left)?;
+        let _ = self.stack.push(branch == Branch::Right)?;
         let cell = self.stack.get_state();
         self.addresses[self.stack.get_state()] = Some(address);
         Ok(cell)
@@ -168,15 +174,6 @@ impl<'a , T : Copy> IntoIterator for & 'a STree8<T>{
          STree8Iter::new(self)
      }
 }
-// impl<T : Copy> Tree<T> for STree8<T>{
-//     fn deep_first_level<S : Iterator>(& self) -> S {
-//         todo!("complete implementation")
-//     }
-//     fn deep_first<S : Iterator>(& self) -> S {
-//         let iter = STree8Iter::new(self);
-//         todo!("complete implementation")
-//     }
-// }
 
 impl<T : Ord> SortTree<T> for STree8<T>{
     fn insert(& mut self, value: T) -> Result<usize, &'static str>{
@@ -235,6 +232,24 @@ mod tests{
     }
 
     #[test]
+    fn test_depth(){
+        let mut tree : STree8<i64> = STree8::new();
+        assert_eq!(tree.depth(),0);
+        let _ = tree.insert(4);
+        assert_eq!(tree.depth(),1);
+        let _ = tree.insert(5);
+        assert_eq!(tree.depth(),2);
+        let _ = tree.insert(2);
+        assert_eq!(tree.depth(),2);
+        let _ = tree.insert(8);
+        assert_eq!(tree.depth(),3);
+        let _ = tree.insert(6);
+        assert_eq!(tree.depth(),4);
+        let _ = tree.insert(1);
+        assert_eq!(tree.depth(),4);
+    }
+
+    #[test]
     fn can_create_iterator(){
         let mut tree : STree8<i64> = STree8::new();
         let test_list = [4,5,2,8,6,1];
@@ -243,7 +258,7 @@ mod tests{
         }
         let mut iterator = STree8Iter::new(& tree);
         assert_eq!(iterator.stack.size(),1);
-        assert_eq!(iterator.pop(),Ok((0,Address::Enter)));
+        assert_eq!(iterator.pop(),Ok((1,Address::Enter)));
     }
 
     #[test]
