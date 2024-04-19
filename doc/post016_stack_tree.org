@@ -160,7 +160,7 @@ empty; so we will use an array of ~Option<T>~ objects.
 
 For simplicty we have this ~T~ type to implement ~Copy~ so we can return it by
 value. The height of our tree (more commonly referred as ~depth~) will be
-calculated as $depth=\lceiling log_2(argmax_i(node(i)!=None) \rceiling$
+calculated as $depth=\lceil log_2(argmax_i(node(i)!=None) \rceil$
 
 In this example we decide to fix the maximum depth to 8 so our tree will be
 placed into an array of $length = 2^8 = 256$
@@ -216,11 +216,11 @@ implements the ~Ord~ trait
 
 #+begin_src rust
 trait SortTree<T : Ord>{
-    fn insert(& mut self, value: T) -> Result<usize, &'static str>;
+    fn insert(& mut self, value: T) -> Result<usize, & 'static str>;
 }
 
 impl<T : Ord> SortTree<T> for STree8<T>{
-    fn insert(& mut self, value: T) -> Result<usize, &'static str>{
+    fn insert(& mut self, value: T) -> Result<usize, & 'static str>{
         let mut node : usize = 1;
         loop {
             if node > 255{
@@ -307,12 +307,54 @@ mod tests{
 #+end_src
 * Design a Depth First Traversal Iterator
 
+As in [[https://noiseonthenet.space/noise/2024/04/climbing-a-binary-tree][Climbing a (binary) Tree]] post we need a stack structure to store
+- the return address
+- the node we are currently exploring
+
+** Storing the current node
 In a previous post ( [[https://noiseonthenet.space/noise/2024/03/stacking-bits/][Stacking Bits]] ) I described how to create a stack of
 boolean using shift operators on a ~usize~ word.
 
 it turns out that is exactly working as our address rule -- and this is not a
 coincidence: we already saw how trees and stacks are mutually connected.
 
+By masking the topmost bit this the state is representing the exact address od
+our array cell. The following methods are extracted from the extended
+implementation.
+
+#+begin_src rust
+    pub fn size(& self) -> u32 {
+        usize::BITS - usize::leading_zeros(self.stack) - 1
+    }
+
+    pub fn get_state(& self) -> usize {
+        self.stack ^ (1 << self.size())
+    }
+#+end_src
+
+by placing the binary stack code into a different file ~btree.rs~ we can access
+it using module commands in our main library ~lib.rs~
+
+#+begin_src rust
+mod bstack;
+#+end_src
+
+** Storing the return address
+As we cannot use a flexible data structure like ~Vec<T>~ to store the return
+address we may leverage the stack property to create an array to store it in the
+same index of each traversed cell
+
+Thus our iterator structure looks like this:
+
+#+begin_src rust
+struct STree8Iter<'a, T>{
+    tree: & 'a STree8<T>,
+    stack: bstack::BStack,
+    addresses: [Option<Address>; 256]
+}
+#+end_src
+
+Before implementing it we make a little dirgression about errors
 * Managing errors
 We cannot use ~String~ object to represent an error value, due to our heap constraint.
 
