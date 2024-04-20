@@ -563,7 +563,7 @@ iterator trait this time. Of course we can create one anyway.
 #+begin_src rust
 impl<'a, T : Copy> Iterator for STree8Iter<'a, T>{
     type Item = T;
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(& mut self) -> Option<Self::Item> {
         // WARNING
         // this implicitly discard any error
         self.next_item().ok()
@@ -635,3 +635,7 @@ or no runtime cost (iterators are a well known example).
 
 # images/post016_rust_tree.png https://noiseonthenet.space/noise/wp-content/uploads/2024/04/post016_rust_tree.png
 # images/post016_rust_tree_label.png https://noiseonthenet.space/noise/wp-content/uploads/2024/04/post016_rust_tree_label.png
+
+# images/rutpratheep-nilpechr-P5tWtdtY2AY-unsplash_reduced.jpg https://noiseonthenet.space/noise/wp-content/uploads/2024/04/rutpratheep-nilpechr-P5tWtdtY2AY-unsplash_reduced.jpg
+# images/egor-myznik-DRs9XsNlAZw-unsplash._reduced.jpg https://noiseonthenet.space/noise/wp-content/uploads/2024/04/egor-myznik-DRs9XsNlAZw-unsplash._reduced.jpg
+# images/kenny-eliason--Cmz06-0btw-unsplash_reduced.jpg https://noiseonthenet.space/noise/wp-content/uploads/2024/04/kenny-eliason-Cmz06-0btw-unsplash_reduced.jpg
