@@ -15,12 +15,20 @@ Photo by [[https://unsplash.com/@rutpratheep?utm_content=creditCopyText&utm_medi
 In this post I will show how to create a binary tree in Rust language, which is
 suitable to be used in emebedded devices
 
+Here is the journey so far; I will mention some of the concepts already
+described in these posts.
+1. [[https://noiseonthenet.space/noise/2024/03/growing-a-binary-tree-in-rust/][Growing a (binary)Tree]]
+2. [[https://noiseonthenet.space/noise/2024/03/growing-a-sorting-tree/][Growing a (sorting) Tree]]
+3. [[https://noiseonthenet.space/noise/2024/03/stacking-bits/][Stacking Bits]]
+4. [[https://noiseonthenet.space/noise/2024/03/prime-time/][Prime Time]]
+5. [[https://noiseonthenet.space/noise/2024/04/climbing-a-binary-tree/][Climbing a (binary) Tree]]
+
 So far we created and explored trees which grow into the application *heap*
 memory, this allowed us to have almost arbitrary size and use the type system to
 guarantee consistent states
 
-What if we cannot use the heap? This happens in embedded devices, which are an
-important target of Rust.
+What if we cannot use the heap? This happens in some "embedded" devices, which
+are an important target of Rust.
 
 Our trees will have a maximum height (or depth using mainstream jargon) and this
 may seem a hard limitation, but has interesting cases in machine learning.
@@ -410,12 +418,216 @@ impl From<bstack::BStackError> for TreeError{
 }
 #+end_src
 
+This method is suitable for small applications like this one: more complex
+libraries are available for larger projects e.g. [[https://crates.io/crates/thiserror][thiserror]]
 
 * Implement the Depth First Traversal Iterator
+
+In a [[https://noiseonthenet.space/noise/2024/04/climbing-a-binary-tree][previous post]] I explained how to create an iterator for a binary tree: here
+we are going to implement the same sequence using our different stack structure.
+
+Here is the address enumeration described there:
+
+#+begin_src rust
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Address{
+    Enter,
+    AfterLeft,
+    ValueYielded,
+    Completed
+}
+#+end_src
+
+To make paths more explicit I decided to use an enumeration to represent the
+possible connections from a node:
+
+#+begin_src rust
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Branch{
+    Left,
+    Right
+}
+#+end_src
+
+The first step is to incapsulate the ~push~ and ~pop~ calls to avoid
+misalignments: in this case there are two push methods
+- ~push_branch~ to describe when accessing a chidren node with a relative path
+  (i.e. left or right) from the current
+- ~push_cell~ is used to push a node with an absolute path, usually when a
+  parent node is pushed back into the call stack with a changed return address
+
+#+begin_src rust
+impl<'a, T : Copy> STree8Iter<'a, T>{
+    pub fn new(tree : & 'a STree8<T>) -> STree8Iter<'a, T>{
+        let mut iterator = STree8Iter::<'a, T>{
+            tree,
+            stack: bstack::BStack::new(),
+            addresses: [None; 256]
+        };
+        // prepare the stack if the tree has a root node
+        if let Ok(Some(_)) = iterator.tree.peek(1) {
+            // ignore errors as iterator is just created
+            let _ = iterator.push_branch(Branch::Right, Address::Enter);
+        }
+        iterator
+    }
+
+    // relative access from the current node
+    fn push_branch(& mut self, branch: Branch, address: Address) -> Result<usize, TreeError>{
+        let _ = self.stack.push(branch == Branch::Right)?;
+        let cell = self.stack.get_state();
+        self.addresses[self.stack.get_state()] = Some(address);
+        Ok(cell)
+    }
+
+    // used to push back parent nodes in the call stack
+    // when we need to change their return address
+    fn push_cell(& mut self, cell: usize, address: Address) -> Result<usize,TreeError>{
+        let _ = self.stack.push(cell & 1 == 1)?;
+        let cell = self.stack.get_state();
+        self.addresses[self.stack.get_state()] = Some(address);
+        Ok(cell)
+    }
+
+    fn pop(& mut self) -> Result<(usize, Address), TreeError> {
+        let cell = self.stack.get_state();
+        let _branch = self.stack.pop()?;
+        let address = self.addresses[cell].ok_or(TreeError::MissingReturnAddress(cell))?;
+        Ok((cell, address))
+    }
+
+    pub fn next_item(& mut self) -> Result<T, TreeError>{
+        todo!("to be developed");
+    }
+}
+
+#+end_src
+
+Finally where we have the actual implementation of ~next_item~, which works in
+the same way we implemented it in the heap based tree.
+
+#+begin_src rust
+    pub fn next_item(& mut self) -> Result<T, TreeError>{
+        while self.stack.size() > 0{
+            let (cell, address) = self.pop()?;
+            match address{
+                Address::Enter => {
+                    let left_address = cell << 1;
+                    match self.tree.peek(left_address)?{
+                        None => {
+                            self.push_cell(cell, Address::AfterLeft)?;
+                        }
+                        Some(_) =>{
+                            self.push_cell(cell, Address::AfterLeft)?;
+                            self.push_branch(Branch::Left, Address::Enter)?;
+                        }
+                    }
+                },
+                Address::AfterLeft => {
+                    self.push_cell(cell, Address::ValueYielded)?;
+                    if let Some(ref result) = self.tree.peek(cell)?{
+                        return Ok(*result);
+                    }else{
+                        return Err(TreeError::IteratorCompleted)
+                    }
+
+                },
+                Address::ValueYielded => {
+                    let right_address = (cell << 1) | 1;
+                    match self.tree.peek(right_address)?{
+                        None => {
+                            self.push_cell(cell, Address::Completed)?;
+                        },
+                        Some(_) => {
+                            self.push_cell(cell, Address::Completed)?;
+                            self.push_branch(Branch::Right, Address::Enter)?;
+                        }
+                    }
+                },
+                Address::Completed =>{
+
+                }
+            }
+        }
+        Err(TreeError::IteratorCompleted)
+    }
+#+end_src
 * Debugging
 We may not have a debugger easily running in a bare metal platform; moreover we
 have no ~print!~ macro available and also writing results on the serial
 connection with the host may alter the platform behavior.
+
+You certainly noticed that the ~next_item~ implementation does not conform the
+iterator trait this time. Of course we can create one anyway.
+
+#+begin_src rust
+impl<'a, T : Copy> Iterator for STree8Iter<'a, T>{
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        // WARNING
+        // this implicitly discard any error
+        self.next_item().ok()
+    }
+}
+
+#+end_src
+
+While ~next_node~ provides a rich return type explaining failures (mostly useful
+for debugging), this implementation removes all failure information to gain the
+rich ~Iterator~ echosystem: the library user is free to chose wathever is more
+appropriate.
+
+A test suite is not solving all bare metal issues but may help when possible, to
+solve issues in a frendlier environment
+
+#+begin_src rust
+#[cfg(test)]
+mod tests{
+    use super::*;
+
+    #[test]
+    fn can_create_iterator(){
+        let mut tree : STree8<i64> = STree8::new();
+        let test_list = [4,5,2,8,6,1];
+        for value in test_list{
+            let _result = tree.insert(value);
+        }
+        let mut iterator = STree8Iter::new(& tree);
+        assert_eq!(iterator.stack.size(),1);
+        assert_eq!(iterator.pop(),Ok((1,Address::Enter)));
+    }
+
+    #[test]
+    fn can_extract_with_next_item(){
+        let mut tree : STree8<i64> = STree8::new();
+        let test_list = [4,5,2,8,6,1];
+        for value in test_list{
+            let _result = tree.insert(value);
+        }
+        let mut iterator = STree8Iter::new(& tree);
+        let mut result = iterator.next_item();
+        assert_eq!(Ok(1),result);
+        result = iterator.next_item();
+        assert_eq!(Ok(2),result);
+    }
+
+    #[test]
+    fn sort_works(){
+        let mut tree : STree8<i64> = STree8::new();
+        let test_list = [4,5,2,8,6,1];
+        for value in test_list{
+            let _result = tree.insert(value);
+        }
+        let expected = [1,2,4,5,6,8];
+        let mut count = 0;
+        for (i,v) in tree.into_iter().enumerate(){
+            assert_eq!(v,expected[i]);
+            count += 1;
+        }
+        assert_eq!(count,test_list.len());
+    }
+}
+#+end_src
 
 * Conclusions
 Rust allows pretty complex abstractions to run on bare metal with very little
