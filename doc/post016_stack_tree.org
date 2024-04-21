@@ -13,11 +13,11 @@ file:images/rutpratheep-nilpechr-P5tWtdtY2AY-unsplash_reduced.jpg
 Photo by [[https://unsplash.com/@rutpratheep?utm_content=creditCopyText&utm_medium=referral&utm_source=unsplash][Rutpratheep Nilpechr]] on [[https://unsplash.com/photos/a-buddha-head-in-the-middle-of-a-tree-P5tWtdtY2AY?utm_content=creditCopyText&utm_medium=referral&utm_source=unsplash][Unsplash]]
 
 In this post I will show how to create a binary tree in Rust language, which is
-suitable to be used in emebedded devices
+suitable to be used in embedded devices
 
 Here is the journey so far; I will mention some of the concepts already
 described in these posts.
-1. [[https://noiseonthenet.space/noise/2024/03/growing-a-binary-tree-in-rust/][Growing a (binary)Tree]]
+1. [[https://noiseonthenet.space/noise/2024/03/growing-a-binary-tree-in-rust/][Growing a (binary) Tree]]
 2. [[https://noiseonthenet.space/noise/2024/03/growing-a-sorting-tree/][Growing a (sorting) Tree]]
 3. [[https://noiseonthenet.space/noise/2024/03/stacking-bits/][Stacking Bits]]
 4. [[https://noiseonthenet.space/noise/2024/03/prime-time/][Prime Time]]
