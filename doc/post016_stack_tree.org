@@ -23,6 +23,8 @@ described in these posts.
 4. [[https://noiseonthenet.space/noise/2024/03/prime-time/][Prime Time]]
 5. [[https://noiseonthenet.space/noise/2024/04/climbing-a-binary-tree/][Climbing a (binary) Tree]]
 
+The code for this post is [[https://github.com/noiseOnTheNet/post016_stack_tree][here]].
+
 So far we created and explored trees which grow into the application *heap*
 memory, this allowed us to have almost arbitrary size and use the type system to
 guarantee consistent states
@@ -404,6 +406,11 @@ enum TreeError{
 
 Rust has a very nice way to manage the error [[https://en.wikipedia.org/wiki/Monad_(functional_programming)][monad]] which include some syntax
 sugar like using a [[https://doc.rust-lang.org/rust-by-example/std/result/question_mark.html][question mark]] at the end of an expression.
+
+The ~std~ crate defines also an ~Error~ trait, which I will ignore in this
+specific case because:
+- in our emebedded environment may not work
+- I need to keep this post simple
 
 To use this shortcut when we call a method from ~bstack~ library (which may
 return a different kind of error respect to our current signature) we need some
